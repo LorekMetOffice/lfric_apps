@@ -7,6 +7,7 @@
 module gw_setup_mod
 
 use um_types, only: real_umphys
+use, intrinsic :: iso_fortran_env, only: real64
 
 implicit none
 
@@ -26,7 +27,11 @@ subroutine gw_setup(levels,points,gw_seg_size,u,v,rho,theta,                   &
                     nsigma,                                                    &
 !diagnostics
                     u_s_d,u_s_d_on,points_u_s_d,                               &
-                    v_s_d,v_s_d_on,points_v_s_d)
+                    v_s_d,v_s_d_on,points_v_s_d,                               &
+                    time_seconds,                                              &
+                    ennuf_theta_residual,ennuf_qt_residual,                   &
+                    ennuf_u_residual,ennuf_v_residual,                        &
+                    latitude,longitude,orography_mean)
 
 ! subroutine gw_setup to set up variables for gravity wave and
 !            flow blocking schemes
@@ -47,6 +52,7 @@ use um_types, only: real_32
 use planet_constants_mod, only: g, repsilon, r, cp, rv
 use lsprec_mod,           only: zerodegc, qcfmin, lc
 use g_wave_input_mod,     only: i_moist
+use gwd_ennuf_adapter_mod, only: predict_column_residuals
 
 implicit none
 ! Description:
@@ -137,6 +143,16 @@ real(kind=real_umphys), intent(out)  ::         &!intent(out) diagnostics
   u_s_d(points_u_s_d),      &!u averaged between 0.5*mt_high and mt_high
   v_s_d(points_v_s_d)        !v averaged between 0.5*mt_high and mt_high
 
+real(kind=real_umphys), intent(in), optional :: time_seconds
+real(kind=real_umphys), intent(in), optional :: latitude(points), longitude(points)
+real(kind=real_umphys), intent(in), optional :: orography_mean(points)
+
+real(kind=real_umphys), intent(out), optional ::                            &
+  ennuf_theta_residual(points,levels),                                      &
+  ennuf_qt_residual(points,levels),                                         &
+  ennuf_u_residual(points,levels),                                          &
+  ennuf_v_residual(points,levels)
+
 logical, intent(out)  ::                                                       &
    l_drag(points)            !whether point has a non-zero stress or not
 
@@ -196,6 +212,8 @@ integer(kind=jpim), parameter :: zhook_out = 1
 real(kind=jprb)               :: zhook_handle
 
 character(len=*), parameter :: RoutineName='GW_SETUP'
+integer, parameter :: ennuf_levels = 53
+real(kind=real64) :: orography_for_ennuf
 ! ----------------------------------------
 ! initialise arrays
 ! ----------------------------------------
@@ -591,6 +609,56 @@ end if
 if ( v_s_d_on ) then
   do i=1,points
     v_s_d(i) = vlow(i)
+  end do
+end if
+
+if (present(ennuf_theta_residual)) ennuf_theta_residual = 0.0_real_umphys
+if (present(ennuf_qt_residual)) ennuf_qt_residual = 0.0_real_umphys
+if (present(ennuf_u_residual)) ennuf_u_residual = 0.0_real_umphys
+if (present(ennuf_v_residual)) ennuf_v_residual = 0.0_real_umphys
+
+if (present(time_seconds) .and. present(ennuf_theta_residual) .and.         &
+    present(ennuf_qt_residual) .and. present(ennuf_u_residual) .and.        &
+    present(ennuf_v_residual) .and. levels >= ennuf_levels) then
+  do i = 1, points
+    orography_for_ennuf = real(sd_orog(i), kind=real64)
+    if (present(orography_mean)) then
+      orography_for_ennuf = real(orography_mean(i), kind=real64)
+    end if
+
+    if (present(latitude) .and. present(longitude)) then
+      call predict_column_residuals(                                         &
+           real(theta(i,1:ennuf_levels), kind=real64),                      &
+           real(q(i,1:ennuf_levels), kind=real64),                          &
+           real(qcl(i,1:ennuf_levels), kind=real64),                        &
+           real(qcf(i,1:ennuf_levels), kind=real64),                        &
+           real(u(i,1:ennuf_levels), kind=real64),                          &
+           real(v(i,1:ennuf_levels), kind=real64),                          &
+           real(press(i,1:ennuf_levels), kind=real64),                      &
+           orography_for_ennuf,                                              &
+           real(time_seconds, kind=real64),                                  &
+           ennuf_theta_residual(i,1:ennuf_levels),                          &
+           ennuf_qt_residual(i,1:ennuf_levels),                             &
+           ennuf_u_residual(i,1:ennuf_levels),                              &
+           ennuf_v_residual(i,1:ennuf_levels),                              &
+           latitude=real(latitude(i), kind=real64),                         &
+           longitude=real(longitude(i), kind=real64))
+    else
+      call predict_column_residuals(                                         &
+           real(theta(i,1:ennuf_levels), kind=real64),                      &
+           real(q(i,1:ennuf_levels), kind=real64),                          &
+           real(qcl(i,1:ennuf_levels), kind=real64),                        &
+           real(qcf(i,1:ennuf_levels), kind=real64),                        &
+           real(u(i,1:ennuf_levels), kind=real64),                          &
+           real(v(i,1:ennuf_levels), kind=real64),                          &
+           real(press(i,1:ennuf_levels), kind=real64),                      &
+           orography_for_ennuf,                                              &
+           real(time_seconds, kind=real64),                                  &
+           ennuf_theta_residual(i,1:ennuf_levels),                          &
+           ennuf_qt_residual(i,1:ennuf_levels),                             &
+           ennuf_u_residual(i,1:ennuf_levels),                              &
+           ennuf_v_residual(i,1:ennuf_levels))
+    end if
   end do
 end if
 

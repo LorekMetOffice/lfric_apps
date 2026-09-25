@@ -10,6 +10,7 @@ module orographic_drag_kernel_mod
 
   use argument_mod,               only: arg_type,          &
                                         GH_FIELD, GH_REAL, &
+                                        GH_SCALAR,         &
                                         GH_READ, GH_WRITE, &
                                         CELL_COLUMN,       &
                                         ANY_DISCONTINUOUS_SPACE_1
@@ -39,7 +40,7 @@ module orographic_drag_kernel_mod
   !>
   type, public, extends(kernel_type) :: orographic_drag_kernel_type
     private
-    type(arg_type) :: meta_args(24) = (/                                   &
+    type(arg_type) :: meta_args(28) = (/                                   &
          arg_type(GH_FIELD, GH_REAL, GH_WRITE, W3),                        & ! du_orog_blk, u wind increment blocking
          arg_type(GH_FIELD, GH_REAL, GH_WRITE, W3),                        & ! dv_orog_blk, v wind increment blocking
          arg_type(GH_FIELD, GH_REAL, GH_WRITE, W3),                        & ! du_orog_gwd, u wind increment gwd
@@ -52,6 +53,7 @@ module orographic_drag_kernel_mod
          arg_type(GH_FIELD, GH_REAL, GH_READ,  Wtheta),                    & ! theta, theta in wtheta
          arg_type(GH_FIELD, GH_REAL, GH_READ,  Wtheta),                    & ! exner_in_wth
          arg_type(GH_FIELD, GH_REAL, GH_READ,  ANY_DISCONTINUOUS_SPACE_1), & ! sd_orog
+         arg_type(GH_FIELD, GH_REAL, GH_READ,  ANY_DISCONTINUOUS_SPACE_1), & ! orography_mean
          arg_type(GH_FIELD, GH_REAL, GH_READ,  ANY_DISCONTINUOUS_SPACE_1), & ! grad_xx_orog
          arg_type(GH_FIELD, GH_REAL, GH_READ,  ANY_DISCONTINUOUS_SPACE_1), & ! grad_xy_orog
          arg_type(GH_FIELD, GH_REAL, GH_READ,  ANY_DISCONTINUOUS_SPACE_1), & ! grad_yy_orog
@@ -60,6 +62,9 @@ module orographic_drag_kernel_mod
          arg_type(GH_FIELD, GH_REAL, GH_READ,  Wtheta),                    & ! mr_cf
          arg_type(GH_FIELD, GH_REAL, GH_READ,  W3),                        & ! height_w3
          arg_type(GH_FIELD, GH_REAL, GH_READ,  Wtheta),                    & ! height_wth
+         arg_type(GH_FIELD, GH_REAL, GH_READ,  ANY_DISCONTINUOUS_SPACE_1), & ! latitude_w3
+         arg_type(GH_FIELD, GH_REAL, GH_READ,  ANY_DISCONTINUOUS_SPACE_1), & ! longitude_w3
+         arg_type(GH_SCALAR, GH_REAL, GH_READ),                             & ! time_seconds
          arg_type(GH_FIELD, GH_REAL, GH_WRITE, Wtheta),                    & ! taux_orog_blk
          arg_type(GH_FIELD, GH_REAL, GH_WRITE, Wtheta),                    & ! tauy_orog_blk
          arg_type(GH_FIELD, GH_REAL, GH_WRITE, Wtheta),                    & ! taux_orog_gwd
@@ -121,9 +126,11 @@ contains
                         du_orog_gwd, dv_orog_gwd,                          &
                         dtemp_orog_blk, dtemp_orog_gwd, u_in_w3, v_in_w3,  &
                         wetrho_in_w3, theta_in_wth, exner_in_wth, sd_orog, &
-                        grad_xx_orog, grad_xy_orog, grad_yy_orog,          &
+                        orography_mean, grad_xx_orog,                       &
+                        grad_xy_orog, grad_yy_orog,                         &
                         mr_v, mr_cl, mr_cf,                                &
-                        height_w3, height_wth,                             &
+                        height_w3, height_wth, latitude_w3, longitude_w3,  &
+                        time_seconds,                                       &
                         ! Diagnostics
                         taux_orog_blk, tauy_orog_blk,                      &
                         taux_orog_gwd, tauy_orog_gwd,                      &
@@ -160,12 +167,15 @@ contains
     real(r_def), intent(in), dimension(undf_wth)  :: theta_in_wth, exner_in_wth
     real(r_def), intent(in), dimension(undf_wth)  :: mr_v, mr_cl, mr_cf
     real(r_def), intent(in), dimension(undf_2d)   :: sd_orog,      &
+                                                     orography_mean, &
                                                      grad_xx_orog, &
                                                      grad_xy_orog, &
                                                      grad_yy_orog
 
     real(r_def), intent(in), dimension(undf_w3)   :: height_w3
     real(r_def), intent(in), dimension(undf_wth)  :: height_wth
+    real(r_def), intent(in), dimension(undf_2d)   :: latitude_w3, longitude_w3
+    real(r_def), intent(in) :: time_seconds
 
     real(r_def), pointer, intent(inout)::      &
             taux_orog_blk(:), tauy_orog_blk(:),&
@@ -202,8 +212,14 @@ contains
     ! which is hardcoded to .false. in the UM code.
     ! We set them here just so that they can be passed in to the subroutines.
     real(r_um), parameter :: delta_lambda=1.0_r_um, delta_phi=1.0_r_um
-    real(r_um), dimension(seg_len) :: latitude
+    real(r_um), dimension(seg_len) :: latitude, longitude
     logical, parameter :: nonhydro=.false., dynbeta=.false.
+
+    integer(i_um), parameter :: ennuf_levels = 53
+    real(r_um), dimension(seg_len, ennuf_levels) :: ennuf_theta_residual, &
+                            ennuf_qt_residual,    &
+                            ennuf_u_residual,     &
+                            ennuf_v_residual
 
     ! Output from gw_setup
     real(r_um), dimension(seg_len, nlayers) :: &
@@ -225,7 +241,7 @@ contains
 
     ! Input subgrid orographic characteristics
     real(r_um), dimension(seg_len) ::               &
-                sd, grad_xx, grad_xy, grad_yy,      &
+                sd, orog_mean, grad_xx, grad_xy, grad_yy, &
                 orog_f1, orog_f2, orog_f3, orog_amp
 
     ! Computed subgrid orographic characteristics
@@ -270,9 +286,6 @@ contains
                        du_dt_diag, dv_dt_diag, &
                        stress_u, stress_v
 
-
-    !dhc - cant be parameter
-    latitude=1.0_r_um
     !-----------------------------------------------------------------------
     ! Initialise arrays and call UM code
     !-----------------------------------------------------------------------
@@ -326,9 +339,12 @@ contains
       press(i,nlayers) = 0.0_r_um
 
       sd(i)      = real(sd_orog(map_2d(1,cell_index(i))), r_um)
+      orog_mean(i) = real(orography_mean(map_2d(1,cell_index(i))), r_um)
       grad_xx(i) = real(grad_xx_orog(map_2d(1,cell_index(i))), r_um)
       grad_xy(i) = real(grad_xy_orog(map_2d(1,cell_index(i))), r_um)
       grad_yy(i) = real(grad_yy_orog(map_2d(1,cell_index(i))), r_um)
+      latitude(i) = real(latitude_w3(map_2d(1,cell_index(i))), r_um)
+      longitude(i) = real(longitude_w3(map_2d(1,cell_index(i))), r_um)
 
       ! Scale aware inputs (not currently used in LFRic)
       orog_f1(i)  = 0.0_r_um
@@ -387,7 +403,15 @@ contains
                   drag, nsigma,                                      &
                   ! diagnostics
                   u_s_d, u_s_d_on, seg_len,                          &
-                  v_s_d, v_s_d_on, seg_len)
+                  v_s_d, v_s_d_on, seg_len,                          &
+                  time_seconds=real(time_seconds, kind=r_um),        &
+                  ennuf_theta_residual=ennuf_theta_residual,         &
+                  ennuf_qt_residual=ennuf_qt_residual,               &
+                  ennuf_u_residual=ennuf_u_residual,                 &
+                  ennuf_v_residual=ennuf_v_residual,                 &
+                  latitude=latitude,                                 &
+                  longitude=longitude,                               &
+                  orography_mean=orog_mean)
 
     ! Call routine to compute orographic blocking depth and drag
     call gw_block(nlayers,seg_len,seg_len,timestep,u_on_p,v_on_p,    &

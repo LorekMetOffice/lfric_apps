@@ -35,9 +35,11 @@ contains
                       du_orog_blk, dv_orog_blk, du_orog_gwd, dv_orog_gwd,&
                       dtemp_orog_blk, dtemp_orog_gwd, u_in_w3, v_in_w3,&
                       wetrho_in_w3, theta_in_wth, exner_in_w3, sd_orog,  &
-                      grad_xx_orog, grad_xy_orog, grad_yy_orog,          &
+                      orography_mean, grad_xx_orog, grad_xy_orog,         &
+                      grad_yy_orog,                                       &
                       mr_v, mr_cl, mr_ci,                                &
-                      height_w3, height_wth,                             &
+                      height_w3, height_wth, latitude_w3, longitude_w3,  &
+                      time_seconds,                                       &
                       taux_orog_blk, tauy_orog_blk,                      &
                       taux_orog_gwd, tauy_orog_gwd )
 
@@ -55,10 +57,13 @@ contains
     type(field_type), intent(in) :: u_in_w3, v_in_w3,           & ! Winds
                                     wetrho_in_w3, theta_in_wth, & ! Density, Temperature
                                     exner_in_w3,                & ! Exner pressure
-                                    sd_orog, grad_xx_orog,      & ! Orography ancils
+                                    sd_orog, orography_mean,    & ! Orography ancils
+                                    grad_xx_orog,               &
                                     grad_xy_orog, grad_yy_orog, & !
                                     mr_v, mr_cl, mr_ci,         & ! mixing ratios
-                                    height_w3, height_wth         ! Heights
+                                    height_w3, height_wth,       & ! Heights
+                                    latitude_w3, longitude_w3      ! Coordinates
+    real(r_def), intent(in) :: time_seconds
     ! Diagnostics from orographic drag
     ! Stress from ...
     type(field_type), intent(inout) :: taux_orog_blk, tauy_orog_blk, & ! ... orographic flow blocking drag
@@ -85,10 +90,12 @@ contains
                               u_in_w3_proxy, v_in_w3_proxy,           &
                               wetrho_in_w3_proxy, theta_in_wth_proxy, &
                               exner_in_w3_proxy,                      &
-                              sd_orog_proxy, grad_xx_orog_proxy,      &
+                              sd_orog_proxy, orography_mean_proxy,    &
+                              grad_xx_orog_proxy,                     &
                               grad_xy_orog_proxy, grad_yy_orog_proxy, &
                               mr_v_proxy, mr_cl_proxy, mr_ci_proxy,   &
                               height_w3_proxy, height_wth_proxy,      &
+                              latitude_w3_proxy, longitude_w3_proxy,  &
                               taux_blk_proxy, tauy_blk_proxy,         &
                               taux_gwd_proxy, tauy_gwd_proxy
 
@@ -111,6 +118,7 @@ contains
     theta_in_wth_proxy = theta_in_wth%get_proxy()
     exner_in_w3_proxy = exner_in_w3%get_proxy()
     sd_orog_proxy = sd_orog%get_proxy()
+    orography_mean_proxy = orography_mean%get_proxy()
     grad_xx_orog_proxy = grad_xx_orog%get_proxy()
     grad_xy_orog_proxy = grad_xy_orog%get_proxy()
     grad_yy_orog_proxy = grad_yy_orog%get_proxy()
@@ -119,6 +127,8 @@ contains
     mr_ci_proxy = mr_ci%get_proxy()
     height_w3_proxy = height_w3%get_proxy()
     height_wth_proxy = height_wth%get_proxy()
+    latitude_w3_proxy = latitude_w3%get_proxy()
+    longitude_w3_proxy = longitude_w3%get_proxy()
 
     taux_blk_proxy = taux_orog_blk%get_proxy()
     tauy_blk_proxy = tauy_orog_blk%get_proxy()
@@ -192,10 +202,13 @@ contains
                         u_in_w3_proxy%data, v_in_w3_proxy%data,                          &
                         wetrho_in_w3_proxy%data, theta_in_wth_proxy%data,                &
                         exner_in_w3_proxy%data,                                          &
-                        sd_orog_proxy%data, grad_xx_orog_proxy%data,                     &
+                        sd_orog_proxy%data, orography_mean_proxy%data,                   &
+                        grad_xx_orog_proxy%data,                                          &
                         grad_xy_orog_proxy%data, grad_yy_orog_proxy%data,                &
                         mr_v_proxy%data, mr_cl_proxy%data, mr_ci_proxy%data,             &
                         height_w3_proxy%data, height_wth_proxy%data,                     &
+                        latitude_w3_proxy%data, longitude_w3_proxy%data,                 &
+                        time_seconds,                                                     &
                         taux_blk_proxy%data, tauy_blk_proxy%data,                        &
                         taux_gwd_proxy%data, tauy_gwd_proxy%data,                        &
                         ndf_w3, undf_w3, map_w3,                                         &
