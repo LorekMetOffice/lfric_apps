@@ -50,10 +50,6 @@ module gwd_ennuf_adapter_mod
   real(real64), save :: nudge_lon_min = -180.0_real64
   real(real64), save :: nudge_lon_max = 180.0_real64
 
-  subroutine log_adapter_loaded()
-    call log_event('ENNUF adapter module loaded: gwd_ennuf_adapter_mod', LOG_LEVEL_INFO)
-  end subroutine log_adapter_loaded
-
 contains
 
   subroutine set_nudge_options(apply_globally, use_theta, use_qt, use_u, use_v, &
@@ -174,7 +170,7 @@ contains
     real(real64) :: active_lon_min
     real(real64) :: active_lon_max
 
-    call log_adapter_loaded()
+    call log_event('ENNUF adapter module loaded: gwd_ennuf_adapter_mod', LOG_LEVEL_INFO)
 
     theta_li = thermodynamic_correction(theta, qcl, qcf)
     qt = compute_qt(qv, qcl, qcf)

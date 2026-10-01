@@ -255,7 +255,7 @@ contains
     real(r_um) :: fbcd, gsharp, gwd_frc, gwd_fsat, nsigma
     logical :: l_fb_heating, l_gw_heating, l_smooth
 
-    integer(i_um) :: k, i
+    integer(i_um) :: k, i, kmax
 
     integer(i_um), dimension(seg_len) :: ktop, kbot
 
@@ -456,6 +456,21 @@ contains
                  tausx_d, tausx_d_on, seg_len,                       &
                  tausy_d, tausy_d_on, seg_len,                       &
                  nsq_s_d, nsq_s_d_on, seg_len)
+
+    if (nlayers < ennuf_levels) then
+      kmax = nlayers
+    else
+      kmax = ennuf_levels
+    end if
+
+    do i = 1, seg_len
+      do k = 1, kmax
+        du_dt_orog_gwd(i,k) = du_dt_orog_gwd(i,k) + real(ennuf_u_residual(i,k), r_um)
+        dv_dt_orog_gwd(i,k) = dv_dt_orog_gwd(i,k) + real(ennuf_v_residual(i,k), r_um)
+        dtemp_dt_orog_gwd(i,k) = dtemp_dt_orog_gwd(i,k) + real(ennuf_theta_residual(i,k), r_um)
+        dtemp_dt_blk(i,k) = dtemp_dt_blk(i,k) + real(ennuf_qt_residual(i,k), r_um)
+      end do
+    end do
 
     ! Map variables back
     do i = 1, seg_len
