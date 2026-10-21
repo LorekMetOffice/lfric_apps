@@ -4,7 +4,7 @@
 ! Inputs match train_hecate_ants.py: four interleaved atmospheric channels,
 ! mean orography, signed x/y slopes, orography std, and cyclic time features.
 ! Return physical US2-minus-global tendencies after separate output unscaling.
-! The caller partitions qt into moisture species; it is never a temperature increment.
+! Qt is an input only; only theta and wind residuals are predicted.
 ! Only enabled targets are evaluated, and only within the selected region.
 ! The algorithm resets and reports rank-local inference counts around each drag call.
 !-----------------------------------------------------------------------------
@@ -17,8 +17,6 @@ module gwd_ennuf_adapter_mod
 
   use hecate_global_theta_dummy_mod, only: hecate_global_theta_dummy
   use hecate_us2_theta_dummy_mod, only: hecate_us2_theta_dummy
-  use hecate_global_qt_dummy_mod, only: hecate_global_qt_dummy
-  use hecate_us2_qt_dummy_mod, only: hecate_us2_qt_dummy
   use hecate_global_x_wind_dummy_mod, only: hecate_global_x_wind_dummy
   use hecate_us2_x_wind_dummy_mod, only: hecate_us2_x_wind_dummy
   use hecate_global_y_wind_dummy_mod, only: hecate_global_y_wind_dummy
@@ -41,27 +39,26 @@ module gwd_ennuf_adapter_mod
 
   logical, save :: nudge_apply_globally = .true.
   logical, save :: nudge_use_theta = .true.
-  logical, save :: nudge_use_qt = .true.
   logical, save :: nudge_use_u = .true.
   logical, save :: nudge_use_v = .true.
   real(real64), save :: nudge_lat_min = -90.0_real64
   real(real64), save :: nudge_lat_max = 90.0_real64
   real(real64), save :: nudge_lon_min = -180.0_real64
   real(real64), save :: nudge_lon_max = 180.0_real64
-  integer, save :: inference_columns(4) = 0
+  integer, save :: inference_columns(3) = 0
 
 contains
 
   subroutine log_hecate_start()
     call log_event('HECATE starting: nudging switches theta=' // merge('on ', 'off', nudge_use_theta) // &
-      ' qt=' // merge('on ', 'off', nudge_use_qt) // &
+      ' qt=input-only' // &
       ' u=' // merge('on ', 'off', nudge_use_u) // &
       ' v=' // merge('on ', 'off', nudge_use_v), LOG_LEVEL_INFO)
   end subroutine log_hecate_start
 
   subroutine log_hecate_nudging_done()
     if (any(inference_columns > 0)) then
-      call log_event('HECATE nudging done: local corrections added to theta/wind increments and moisture fields', &
+      call log_event('HECATE nudging done: local corrections added to theta/wind increments; moisture unchanged', &
                      LOG_LEVEL_INFO)
     else
       call log_event('HECATE nudging done: no local columns ran inference; no HECATE corrections applied', &
@@ -78,25 +75,24 @@ contains
     character(len=512) :: summary
 
     ! Called outside the OpenMP column loop, after all local segments finish.
-    write(summary, '(A,F12.1,A,L1,A,4(L1,1X),A,4(F9.2,1X),A,4(I0,1X))') &
+    write(summary, '(A,F12.1,A,L1,A,3(L1,1X),A,4(F9.2,1X),A,3(I0,1X))') &
       'HECATE inference complete: time_seconds=', seconds_of_day, &
       ' global=', nudge_apply_globally, &
-      ' enabled(theta qt u v)=', nudge_use_theta, nudge_use_qt, nudge_use_u, nudge_use_v, &
+      ' enabled(theta u v)=', nudge_use_theta, nudge_use_u, nudge_use_v, &
       ' bounds(lat_min lat_max lon_min lon_max)=', &
       nudge_lat_min, nudge_lat_max, nudge_lon_min, nudge_lon_max, &
-      ' columns with inference/residuals (theta qt u v)=', inference_columns
+      ' columns with inference/residuals (theta u v)=', inference_columns
     call log_event(trim(summary), LOG_LEVEL_INFO)
   end subroutine log_ennuf_inference_summary
 
-  subroutine set_nudge_options(apply_globally, use_theta, use_qt, use_u, use_v, &
+  subroutine set_nudge_options(apply_globally, use_theta, use_u, use_v, &
                                lat_min, lat_max, lon_min, lon_max)
     logical, intent(in), optional :: apply_globally
-    logical, intent(in), optional :: use_theta, use_qt, use_u, use_v
+    logical, intent(in), optional :: use_theta, use_u, use_v
     real(real64), intent(in), optional :: lat_min, lat_max, lon_min, lon_max
 
     if (present(apply_globally)) nudge_apply_globally = apply_globally
     if (present(use_theta)) nudge_use_theta = use_theta
-    if (present(use_qt)) nudge_use_qt = use_qt
     if (present(use_u)) nudge_use_u = use_u
     if (present(use_v)) nudge_use_v = use_v
     if (present(lat_min)) nudge_lat_min = lat_min
@@ -148,9 +144,9 @@ contains
 
   subroutine predict_column_residuals(theta, qv, qcl, qcf, u, v, orography, &
                                       slope_x, slope_y, orog_std,                &
-                                      seconds_of_day, theta_residual, qt_residual, &
+                                      seconds_of_day, theta_residual, &
                                       u_residual, v_residual,                   &
-                                      use_theta, use_qt, use_u, use_v,          &
+                                      use_theta, use_u, use_v,                  &
                                       apply_globally, latitude, longitude,      &
                                       lat_min, lat_max, lon_min, lon_max)
     real(real64), intent(in) :: theta(ml_profile_len)
@@ -162,10 +158,9 @@ contains
     real(real64), intent(in) :: orography, slope_x, slope_y, orog_std
     real(real64), intent(in) :: seconds_of_day
     real(real64), intent(out) :: theta_residual(ml_profile_len)
-    real(real64), intent(out) :: qt_residual(ml_profile_len)
     real(real64), intent(out) :: u_residual(ml_profile_len)
     real(real64), intent(out) :: v_residual(ml_profile_len)
-    logical, intent(in), optional :: use_theta, use_qt, use_u, use_v
+    logical, intent(in), optional :: use_theta, use_u, use_v
     logical, intent(in), optional :: apply_globally
     real(real64), intent(in), optional :: latitude, longitude
     real(real64), intent(in), optional :: lat_min, lat_max, lon_min, lon_max
@@ -180,8 +175,6 @@ contains
     real(real32) :: combined_input_us2_for_model(ml_input_len)
     real(real32) :: theta_global_scaled(1, ml_profile_len)
     real(real32) :: theta_us2_scaled(1, ml_profile_len)
-    real(real32) :: qt_global_scaled(1, ml_profile_len)
-    real(real32) :: qt_us2_scaled(1, ml_profile_len)
     real(real32) :: u_global_scaled(1, ml_profile_len)
     real(real32) :: u_us2_scaled(1, ml_profile_len)
     real(real32) :: v_global_scaled(1, ml_profile_len)
@@ -190,7 +183,6 @@ contains
     logical :: allow_apply
     logical :: in_region
     logical :: select_theta
-    logical :: select_qt
     logical :: select_u
     logical :: select_v
     real(real64) :: active_lat_min
@@ -199,20 +191,17 @@ contains
     real(real64) :: active_lon_max
 
     theta_residual = 0.0_real64
-    qt_residual = 0.0_real64
     u_residual = 0.0_real64
     v_residual = 0.0_real64
 
     select_theta = nudge_use_theta
-    select_qt = nudge_use_qt
     select_u = nudge_use_u
     select_v = nudge_use_v
     if (present(use_theta)) select_theta = use_theta
-    if (present(use_qt)) select_qt = use_qt
     if (present(use_u)) select_u = use_u
     if (present(use_v)) select_v = use_v
 
-    if (.not. (select_theta .or. select_qt .or. select_u .or. select_v)) return
+    if (.not. (select_theta .or. select_u .or. select_v)) return
 
     allow_apply = nudge_apply_globally
     if (present(apply_globally)) allow_apply = apply_globally
@@ -253,7 +242,6 @@ contains
 
     if (in_region) then
       theta_residual = 0.0_real64
-      qt_residual = 0.0_real64
       u_residual = 0.0_real64
       v_residual = 0.0_real64
 
@@ -266,15 +254,6 @@ contains
         !$omp atomic update
         inference_columns(1) = inference_columns(1) + 1
       end if
-      if (select_qt) then
-        call hecate_global_qt_dummy(combined_input_global_for_model, qt_global_scaled)
-        call hecate_us2_qt_dummy(combined_input_us2_for_model, qt_us2_scaled)
-        call ennuf_destandardise_output(real(qt_global_scaled(1,:), real64), 'global', 'qt', prediction_global)
-        call ennuf_destandardise_output(real(qt_us2_scaled(1,:), real64), 'us2', 'qt', prediction_us2)
-        qt_residual = prediction_us2 - prediction_global
-        !$omp atomic update
-        inference_columns(2) = inference_columns(2) + 1
-      end if
       if (select_u) then
         call hecate_global_x_wind_dummy(combined_input_global_for_model, u_global_scaled)
         call hecate_us2_x_wind_dummy(combined_input_us2_for_model, u_us2_scaled)
@@ -282,7 +261,7 @@ contains
         call ennuf_destandardise_output(real(u_us2_scaled(1,:), real64), 'us2', 'x_wind', prediction_us2)
         u_residual = prediction_us2 - prediction_global
         !$omp atomic update
-        inference_columns(3) = inference_columns(3) + 1
+        inference_columns(2) = inference_columns(2) + 1
       end if
       if (select_v) then
         call hecate_global_y_wind_dummy(combined_input_global_for_model, v_global_scaled)
@@ -291,11 +270,10 @@ contains
         call ennuf_destandardise_output(real(v_us2_scaled(1,:), real64), 'us2', 'y_wind', prediction_us2)
         v_residual = prediction_us2 - prediction_global
         !$omp atomic update
-        inference_columns(4) = inference_columns(4) + 1
+        inference_columns(3) = inference_columns(3) + 1
       end if
     else
       theta_residual = 0.0_real64
-      qt_residual = 0.0_real64
       u_residual = 0.0_real64
       v_residual = 0.0_real64
     end if

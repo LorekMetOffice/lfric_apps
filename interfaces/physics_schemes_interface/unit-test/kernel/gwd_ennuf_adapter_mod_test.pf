@@ -18,9 +18,11 @@ contains
   subroutine test_layout_and_switches(this)
     class(ennuf_adapter_test_type), intent(inout) :: this
     real(real64) :: theta(53), qv(53), qcl(53), qcf(53), u(53), v(53)
-    real(real64) :: output(53,4), baseline(53,4), corrected(53)
+    real(real64) :: output(53,3), baseline(53,3), corrected(53)
     real(real32) :: inputs(218)
     real(real64), parameter :: tol = 1.e-12_real64
+    logical :: enabled(3)
+    integer :: mask, target
 
     theta = 300.0_real64
     qv = 0.006_real64
@@ -40,41 +42,55 @@ contains
     @assertTrue(abs(inputs(217)-1.0_real32) < 1.e-6_real32)
     @assertTrue(abs(inputs(218)) < 1.e-6_real32)
 
-    call set_nudge_options(.true., .true., .true., .true., .true.)
+    call set_nudge_options(.true., .true., .true., .true.)
     call predict_column_residuals(theta, qv, qcl, qcf, u, v, 300.0_real64, 0.01_real64, &
-      -0.02_real64, 50.0_real64, 21600.0_real64, baseline(:,1), baseline(:,2), baseline(:,3), baseline(:,4))
+      -0.02_real64, 50.0_real64, 21600.0_real64, baseline(:,1), baseline(:,2), baseline(:,3))
     call predict_column_residuals(theta, qv, qcl, qcf, u, v, 300.0_real64, 0.01_real64, &
-      -0.02_real64, 50.0_real64, 21600.0_real64, output(:,1), output(:,2), output(:,3), output(:,4), &
-      use_qt=.false.)
+      -0.02_real64, 50.0_real64, 21600.0_real64, output(:,1), output(:,2), output(:,3), &
+      use_u=.false.)
     @assertTrue(all(output(:,2) == 0.0_real64))
     @assertEqual(baseline(:,1), output(:,1), tolerance=tol)
     @assertEqual(baseline(:,3), output(:,3), tolerance=tol)
-    @assertEqual(baseline(:,4), output(:,4), tolerance=tol)
 
-    ! Qt remains an input even when its output correction is disabled.
+    do mask = 0, 7
+      enabled = [btest(mask,0), btest(mask,1), btest(mask,2)]
+      call set_nudge_options(.true., enabled(1), enabled(2), enabled(3))
+      call predict_column_residuals(theta, qv, qcl, qcf, u, v, 300.0_real64, 0.01_real64, &
+        -0.02_real64, 50.0_real64, 21600.0_real64, output(:,1), output(:,2), output(:,3))
+      do target = 1, 3
+        if (enabled(target)) then
+          @assertEqual(baseline(:,target), output(:,target), tolerance=tol)
+        else
+          @assertTrue(all(output(:,target) == 0.0_real64))
+        end if
+      end do
+    end do
+    call set_nudge_options(.true., .true., .true., .true.)
+
+    ! Qt remains an input despite having no output inference.
     qv = 2.0_real64*qv
     call build_ennuf_input(corrected, qv+qcl+qcf, u, v, 300.0_real64, 0.01_real64, &
                           -0.02_real64, 50.0_real64, 21600.0_real64, inputs)
     @assertTrue(all(inputs(2:212:4) == real(qv+qcl+qcf, real32)))
     qv = 0.006_real64
 
-    call set_nudge_options(.true., .false., .false., .false., .false.)
+    call set_nudge_options(.true., .false., .false., .false.)
     call predict_column_residuals(theta, qv, qcl, qcf, u, v, 300.0_real64, 0.01_real64, &
-      -0.02_real64, 50.0_real64, 21600.0_real64, output(:,1), output(:,2), output(:,3), output(:,4))
+      -0.02_real64, 50.0_real64, 21600.0_real64, output(:,1), output(:,2), output(:,3))
     @assertTrue(all(output == 0.0_real64))
-    call set_nudge_options(.true., .true., .true., .true., .true.)
+    call set_nudge_options(.true., .true., .true., .true.)
 
     call set_nudge_options(apply_globally=.false., lat_min=10.0_real64, lat_max=20.0_real64, &
                           lon_min=30.0_real64, lon_max=40.0_real64)
     call predict_column_residuals(theta, qv, qcl, qcf, u, v, 300.0_real64, 0.01_real64, &
-      -0.02_real64, 50.0_real64, 21600.0_real64, output(:,1), output(:,2), output(:,3), output(:,4), &
+      -0.02_real64, 50.0_real64, 21600.0_real64, output(:,1), output(:,2), output(:,3), &
       latitude=15.0_real64, longitude=35.0_real64)
     @assertEqual(baseline, output, tolerance=tol)
     call predict_column_residuals(theta, qv, qcl, qcf, u, v, 300.0_real64, 0.01_real64, &
-      -0.02_real64, 50.0_real64, 21600.0_real64, output(:,1), output(:,2), output(:,3), output(:,4), &
+      -0.02_real64, 50.0_real64, 21600.0_real64, output(:,1), output(:,2), output(:,3), &
       latitude=5.0_real64, longitude=35.0_real64)
     @assertTrue(all(output == 0.0_real64))
-    call set_nudge_options(.true., .true., .true., .true., .true., &
+    call set_nudge_options(.true., .true., .true., .true., &
                           -90.0_real64, 90.0_real64, -180.0_real64, 180.0_real64)
   end subroutine test_layout_and_switches
 end module gwd_ennuf_adapter_mod_test

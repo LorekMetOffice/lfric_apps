@@ -46,14 +46,13 @@ contains
   !> @param[in,out] dtheta_orographic_drag Increment to theta field
   !> @param[in]     derived fields         Group of derived fields
   !> @param[in]     orography_fields       Fields for orographic drag scheme
-  !> @param[out]    dqt_ennuf              ENNUF total-water increment in wtheta
   !> @param[in]     theta                  Potential temperature in wtheta
   !> @param[in]     u                      Wind in W2
   !> @param[in]     mr_n                   Mixing ratios at time level n
   subroutine orographic_drag_alg(config,                            &
                     du_orographic_drag, dv_orographic_drag,         &
                     dtheta_orographic_drag,                         &
-                    derived_fields, orography_fields, theta, u, mr_n, dqt_ennuf)
+                    derived_fields, orography_fields, theta, u, mr_n)
 
     ! orographic kernels
     use orographic_drag_kernel_mod, only: orographic_drag_kernel_type
@@ -71,7 +70,6 @@ contains
     type( field_collection_type ), intent(in) :: derived_fields
     type( field_collection_type ), intent(in) :: orography_fields
     type( field_type ), intent(in) :: theta, u, mr_n(nummr)
-    type( field_type ), intent(out) :: dqt_ennuf
 
     ! Local fields
     type( field_type ) :: dtemp_orographic_drag ! ... temperature
@@ -119,7 +117,6 @@ contains
 
     logical, parameter :: nudge_apply_globally = .true.
     logical, parameter :: nudge_use_theta = .true.
-    logical, parameter :: nudge_use_qt = .true.
     logical, parameter :: nudge_use_u = .true.
     logical, parameter :: nudge_use_v = .true.
     real(r_def), parameter :: nudge_lat_min = -90.0_r_def
@@ -142,7 +139,7 @@ contains
     call xios_get_current_date(datetime)
     time_seconds = real(seconds_from_date(datetime), r_def)
 
-    call set_nudge_options(nudge_apply_globally, nudge_use_theta, nudge_use_qt, &
+    call set_nudge_options(nudge_apply_globally, nudge_use_theta, &
                  nudge_use_u, nudge_use_v, nudge_lat_min, nudge_lat_max, &
                  nudge_lon_min, nudge_lon_max)
 
@@ -170,7 +167,6 @@ contains
     call theta%copy_field_properties(dtemp_orographic_drag)
     call theta%copy_field_properties(dtemp_orog_blk)
     call theta%copy_field_properties(dtemp_orog_gwd)
-    call theta%copy_field_properties(dqt_ennuf)
 
     ! Initialise field increments from orographic drag
     call invoke(setval_c(du_orog_blk,    0.0_r_def),     &
@@ -178,8 +174,7 @@ contains
                 setval_c(dtemp_orog_blk, 0.0_r_def),     &
                 setval_c(du_orog_gwd,    0.0_r_def),     &
                 setval_c(dv_orog_gwd,    0.0_r_def),     &
-                setval_c(dtemp_orog_gwd, 0.0_r_def), &
-                setval_c(dqt_ennuf,     0.0_r_def) )
+                setval_c(dtemp_orog_gwd, 0.0_r_def) )
 
     ! Initialise orographic drag diagnostics
     call initialise_diags_for_orographic_drag(                              &
@@ -215,7 +210,7 @@ contains
                 latitude_w3, longitude_w3,                     &
                 time_seconds,                                  &
                 taux_orog_blk, tauy_orog_blk,                 &
-                taux_orog_gwd, tauy_orog_gwd, dqt_ennuf)
+                taux_orog_gwd, tauy_orog_gwd)
     call log_ennuf_inference_summary(real(time_seconds, real64))
 
     ! Sum increments

@@ -42,7 +42,7 @@ contains
                       height_w3, height_wth, latitude_w3, longitude_w3,  &
                       time_seconds,                                       &
                       taux_orog_blk, tauy_orog_blk,                      &
-                      taux_orog_gwd, tauy_orog_gwd, dqt_ennuf )
+                      taux_orog_gwd, tauy_orog_gwd )
 
     use orographic_drag_kernel_mod, only: orographic_drag_kernel_code
     use mesh_mod, only: mesh_type
@@ -66,7 +66,6 @@ contains
                                     height_w3, height_wth,       & ! Heights
                                     latitude_w3, longitude_w3      ! Coordinates
     real(r_def), intent(in) :: time_seconds
-    type(field_type), intent(inout) :: dqt_ennuf
     ! Diagnostics from orographic drag
     ! Stress from ...
     type(field_type), intent(inout) :: taux_orog_blk, tauy_orog_blk, & ! ... orographic flow blocking drag
@@ -95,7 +94,6 @@ contains
                               exner_in_w3_proxy,                      &
                               sd_orog_proxy,                           &
                               grad_x_orog_proxy, grad_y_orog_proxy,    &
-                              dqt_ennuf_proxy,                         &
                               grad_xx_orog_proxy,                     &
                               grad_xy_orog_proxy, grad_yy_orog_proxy, &
                               mr_v_proxy, mr_cl_proxy, mr_ci_proxy,   &
@@ -125,7 +123,6 @@ contains
     sd_orog_proxy = sd_orog%get_proxy()
     grad_x_orog_proxy = grad_x_orog%get_proxy()
     grad_y_orog_proxy = grad_y_orog%get_proxy()
-    dqt_ennuf_proxy = dqt_ennuf%get_proxy()
     grad_xx_orog_proxy = grad_xx_orog%get_proxy()
     grad_xy_orog_proxy = grad_xy_orog%get_proxy()
     grad_yy_orog_proxy = grad_yy_orog%get_proxy()
@@ -218,7 +215,7 @@ contains
                         latitude_w3_proxy%data, longitude_w3_proxy%data,                 &
                         time_seconds,                                                     &
                         taux_blk_proxy%data, tauy_blk_proxy%data,                        &
-                        taux_gwd_proxy%data, tauy_gwd_proxy%data, dqt_ennuf_proxy%data,  &
+                        taux_gwd_proxy%data, tauy_gwd_proxy%data,             &
                         ndf_w3, undf_w3, map_w3,                                         &
                         ndf_wtheta, undf_wtheta, map_wtheta,                             &
                         ndf_adspc1_sd_orog, undf_adspc1_sd_orog,                         &
@@ -239,7 +236,6 @@ contains
     call tauy_blk_proxy%set_dirty()
     call taux_gwd_proxy%set_dirty()
     call tauy_gwd_proxy%set_dirty()
-    call dqt_ennuf_proxy%set_dirty()
 
   end subroutine invoke_orographic_drag_kernel
   !---------------------------------------------------------------------

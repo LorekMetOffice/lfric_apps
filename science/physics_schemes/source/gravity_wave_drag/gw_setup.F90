@@ -29,7 +29,7 @@ subroutine gw_setup(levels,points,gw_seg_size,u,v,rho,theta,                   &
                     u_s_d,u_s_d_on,points_u_s_d,                               &
                     v_s_d,v_s_d_on,points_v_s_d,                               &
                     time_seconds,                                              &
-                    ennuf_theta_residual,ennuf_qt_residual,                   &
+                    ennuf_theta_residual,                                    &
                     ennuf_u_residual,ennuf_v_residual,                        &
                     latitude,longitude,orography_mean,orography_slope_x,orography_slope_y)
 
@@ -150,7 +150,6 @@ real(kind=real_umphys), intent(in), optional :: orography_slope_x(points), orogr
 
 real(kind=real_umphys), intent(out), optional ::                            &
   ennuf_theta_residual(points,levels),                                      &
-  ennuf_qt_residual(points,levels),                                         &
   ennuf_u_residual(points,levels),                                          &
   ennuf_v_residual(points,levels)
 
@@ -614,12 +613,11 @@ if ( v_s_d_on ) then
 end if
 
 if (present(ennuf_theta_residual)) ennuf_theta_residual = 0.0_real_umphys
-if (present(ennuf_qt_residual)) ennuf_qt_residual = 0.0_real_umphys
 if (present(ennuf_u_residual)) ennuf_u_residual = 0.0_real_umphys
 if (present(ennuf_v_residual)) ennuf_v_residual = 0.0_real_umphys
 
 if (present(time_seconds) .and. present(ennuf_theta_residual) .and.         &
-    present(ennuf_qt_residual) .and. present(ennuf_u_residual) .and.        &
+    present(ennuf_u_residual) .and.                                      &
     present(ennuf_v_residual) .and. levels >= ennuf_levels) then
   if (.not. present(orography_mean) .or. .not. present(orography_slope_x) .or. &
       .not. present(orography_slope_y)) then
@@ -642,7 +640,6 @@ if (present(time_seconds) .and. present(ennuf_theta_residual) .and.         &
            real(sd_orog(i), kind=real64),                                   &
            real(time_seconds, kind=real64),                                  &
            ennuf_theta_residual(i,1:ennuf_levels),                          &
-           ennuf_qt_residual(i,1:ennuf_levels),                             &
            ennuf_u_residual(i,1:ennuf_levels),                              &
            ennuf_v_residual(i,1:ennuf_levels),                              &
            latitude=real(latitude(i), kind=real64),                         &
@@ -661,7 +658,6 @@ if (present(time_seconds) .and. present(ennuf_theta_residual) .and.         &
            real(sd_orog(i), kind=real64),                                   &
            real(time_seconds, kind=real64),                                  &
            ennuf_theta_residual(i,1:ennuf_levels),                          &
-           ennuf_qt_residual(i,1:ennuf_levels),                             &
            ennuf_u_residual(i,1:ennuf_levels),                              &
            ennuf_v_residual(i,1:ennuf_levels))
     end if

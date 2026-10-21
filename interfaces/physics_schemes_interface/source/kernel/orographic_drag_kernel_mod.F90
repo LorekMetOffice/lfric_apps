@@ -40,7 +40,7 @@ module orographic_drag_kernel_mod
   !>
   type, public, extends(kernel_type) :: orographic_drag_kernel_type
     private
-    type(arg_type) :: meta_args(30) = (/                                   &
+    type(arg_type) :: meta_args(29) = (/                                   &
          arg_type(GH_FIELD, GH_REAL, GH_WRITE, W3),                        & ! du_orog_blk, u wind increment blocking
          arg_type(GH_FIELD, GH_REAL, GH_WRITE, W3),                        & ! dv_orog_blk, v wind increment blocking
          arg_type(GH_FIELD, GH_REAL, GH_WRITE, W3),                        & ! du_orog_gwd, u wind increment gwd
@@ -69,8 +69,7 @@ module orographic_drag_kernel_mod
          arg_type(GH_FIELD, GH_REAL, GH_WRITE, Wtheta),                    & ! taux_orog_blk
          arg_type(GH_FIELD, GH_REAL, GH_WRITE, Wtheta),                    & ! tauy_orog_blk
          arg_type(GH_FIELD, GH_REAL, GH_WRITE, Wtheta),                    & ! taux_orog_gwd
-         arg_type(GH_FIELD, GH_REAL, GH_WRITE, Wtheta),                    & ! tauy_orog_gwd
-         arg_type(GH_FIELD, GH_REAL, GH_WRITE, Wtheta)                     & ! dqt_ennuf
+         arg_type(GH_FIELD, GH_REAL, GH_WRITE, Wtheta)                     & ! tauy_orog_gwd
          /)
     integer :: operates_on = CELL_COLUMN
   contains
@@ -103,7 +102,6 @@ contains
   !! @param[in]     sd_orog        Standard deviation of sub-grid orog
   !! @param[in]     grad_x_orog    Signed ancillary dh/dx
   !! @param[in]     grad_y_orog    Signed ancillary dh/dy
-  !! @param[out]    dqt_ennuf      ENNUF total-water increment
   !! @param[in]     grad_xx_orog   (dh/dx)**2
   !! @param[in]     grad_xy_orog   (dh/dx)*(dh/dy)
   !! @param[in]     grad_yy_orog   (dh/dy)**2
@@ -139,7 +137,7 @@ contains
                         time_seconds,                                       &
                         ! Diagnostics
                         taux_orog_blk, tauy_orog_blk,                      &
-                        taux_orog_gwd, tauy_orog_gwd, dqt_ennuf,           &
+                        taux_orog_gwd, tauy_orog_gwd,                      &
                         ! Spatial information
                         ndf_w3, undf_w3, map_w3, ndf_wth, undf_wth,        &
                         map_wth, ndf_2d, undf_2d, map_2d, seg_len, cell_index)
@@ -168,7 +166,6 @@ contains
     real(r_def), intent(inout), dimension(undf_w3)  :: du_orog_blk, du_orog_gwd, &
                                                        dv_orog_blk, dv_orog_gwd
     real(r_def), intent(inout), dimension(undf_wth) :: dtemp_orog_blk, dtemp_orog_gwd
-    real(r_def), intent(inout), dimension(undf_wth) :: dqt_ennuf
     real(r_def), intent(in), dimension(undf_w3)     :: u_in_w3, v_in_w3, &
                                                        wetrho_in_w3
     real(r_def), intent(in), dimension(undf_wth)  :: theta_in_wth, exner_in_wth
@@ -224,7 +221,6 @@ contains
 
     integer(i_um), parameter :: ennuf_levels = 53
     real(r_um), dimension(seg_len, nlayers) :: ennuf_theta_residual, &
-                            ennuf_qt_residual,    &
                             ennuf_u_residual,     &
                             ennuf_v_residual
 
@@ -416,7 +412,6 @@ contains
                   v_s_d, v_s_d_on, seg_len,                          &
                   time_seconds=real(time_seconds, kind=r_um),        &
                   ennuf_theta_residual=ennuf_theta_residual,         &
-                  ennuf_qt_residual=ennuf_qt_residual,               &
                   ennuf_u_residual=ennuf_u_residual,                 &
                   ennuf_v_residual=ennuf_v_residual,                 &
                   latitude=latitude * (180.0_r_um/pi),                 &
@@ -481,7 +476,6 @@ contains
         ! The ENNUF theta tendency must survive the algorithm's later T/Exner conversion.
         dtemp_dt_orog_gwd(i,k) = dtemp_dt_orog_gwd(i,k) + &
           real(ennuf_theta_residual(i,k), r_um) * exner_in_wth(map_wth(1,cell_index(i)) + k)
-        dqt_ennuf(map_wth(1,cell_index(i)) + k) = real(ennuf_qt_residual(i,k)*timestep, r_def)
       end do
     end do
 
