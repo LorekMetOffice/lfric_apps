@@ -1,0 +1,80 @@
+!> Tests the ANTS-feature input layout and ENNUF nudging controls.
+module gwd_ennuf_adapter_mod_test
+  use funit
+  use, intrinsic :: iso_fortran_env, only: real32, real64
+  use gwd_ennuf_adapter_mod, only: build_ennuf_input, predict_column_residuals, &
+                                 set_nudge_options, thermodynamic_correction
+  implicit none
+
+  @TestCase
+  type, extends(TestCase) :: ennuf_adapter_test_type
+  contains
+    procedure :: test_layout_and_switches
+  end type ennuf_adapter_test_type
+
+contains
+
+  @test
+  subroutine test_layout_and_switches(this)
+    class(ennuf_adapter_test_type), intent(inout) :: this
+    real(real64) :: theta(53), qv(53), qcl(53), qcf(53), u(53), v(53)
+    real(real64) :: output(53,4), baseline(53,4), corrected(53)
+    real(real32) :: inputs(218)
+    real(real64), parameter :: tol = 1.e-12_real64
+
+    theta = 300.0_real64
+    qv = 0.006_real64
+    qcl = 0.002_real64
+    qcf = 0.001_real64
+    u = 5.0_real64
+    v = -2.0_real64
+    corrected = thermodynamic_correction(theta, qcl, qcf)
+    @assertEqual(theta - ((2.501e6_real64/1005)*qcl + (2.835e6_real64/1005)*qcf), corrected, tolerance=tol)
+    call build_ennuf_input(corrected, qv+qcl+qcf, u, v, 300.0_real64, 0.01_real64, &
+                          -0.02_real64, 50.0_real64, 21600.0_real64, inputs)
+    @assertTrue(all(inputs(1:212:4) == real(corrected, real32)))
+    @assertTrue(all(inputs(2:212:4) == real(qv+qcl+qcf, real32)))
+    @assertTrue(all(inputs(3:212:4) == real(u, real32)))
+    @assertTrue(all(inputs(4:212:4) == real(v, real32)))
+    @assertTrue(all(inputs(213:216) == [300.0_real32, 0.01_real32, -0.02_real32, 50.0_real32]))
+    @assertTrue(abs(inputs(217)-1.0_real32) < 1.e-6_real32)
+    @assertTrue(abs(inputs(218)) < 1.e-6_real32)
+
+    call set_nudge_options(.true., .true., .true., .true., .true.)
+    call predict_column_residuals(theta, qv, qcl, qcf, u, v, 300.0_real64, 0.01_real64, &
+      -0.02_real64, 50.0_real64, 21600.0_real64, baseline(:,1), baseline(:,2), baseline(:,3), baseline(:,4))
+    call predict_column_residuals(theta, qv, qcl, qcf, u, v, 300.0_real64, 0.01_real64, &
+      -0.02_real64, 50.0_real64, 21600.0_real64, output(:,1), output(:,2), output(:,3), output(:,4), &
+      use_qt=.false.)
+    @assertTrue(all(output(:,2) == 0.0_real64))
+    @assertEqual(baseline(:,1), output(:,1), tolerance=tol)
+    @assertEqual(baseline(:,3), output(:,3), tolerance=tol)
+    @assertEqual(baseline(:,4), output(:,4), tolerance=tol)
+
+    ! Qt remains an input even when its output correction is disabled.
+    qv = 2.0_real64*qv
+    call build_ennuf_input(corrected, qv+qcl+qcf, u, v, 300.0_real64, 0.01_real64, &
+                          -0.02_real64, 50.0_real64, 21600.0_real64, inputs)
+    @assertTrue(all(inputs(2:212:4) == real(qv+qcl+qcf, real32)))
+    qv = 0.006_real64
+
+    call set_nudge_options(.true., .false., .false., .false., .false.)
+    call predict_column_residuals(theta, qv, qcl, qcf, u, v, 300.0_real64, 0.01_real64, &
+      -0.02_real64, 50.0_real64, 21600.0_real64, output(:,1), output(:,2), output(:,3), output(:,4))
+    @assertTrue(all(output == 0.0_real64))
+    call set_nudge_options(.true., .true., .true., .true., .true.)
+
+    call set_nudge_options(apply_globally=.false., lat_min=10.0_real64, lat_max=20.0_real64, &
+                          lon_min=30.0_real64, lon_max=40.0_real64)
+    call predict_column_residuals(theta, qv, qcl, qcf, u, v, 300.0_real64, 0.01_real64, &
+      -0.02_real64, 50.0_real64, 21600.0_real64, output(:,1), output(:,2), output(:,3), output(:,4), &
+      latitude=15.0_real64, longitude=35.0_real64)
+    @assertEqual(baseline, output, tolerance=tol)
+    call predict_column_residuals(theta, qv, qcl, qcf, u, v, 300.0_real64, 0.01_real64, &
+      -0.02_real64, 50.0_real64, 21600.0_real64, output(:,1), output(:,2), output(:,3), output(:,4), &
+      latitude=5.0_real64, longitude=35.0_real64)
+    @assertTrue(all(output == 0.0_real64))
+    call set_nudge_options(.true., .true., .true., .true., .true., &
+                          -90.0_real64, 90.0_real64, -180.0_real64, 180.0_real64)
+  end subroutine test_layout_and_switches
+end module gwd_ennuf_adapter_mod_test

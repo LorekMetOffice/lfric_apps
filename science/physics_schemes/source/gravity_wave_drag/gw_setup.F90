@@ -31,7 +31,7 @@ subroutine gw_setup(levels,points,gw_seg_size,u,v,rho,theta,                   &
                     time_seconds,                                              &
                     ennuf_theta_residual,ennuf_qt_residual,                   &
                     ennuf_u_residual,ennuf_v_residual,                        &
-                    latitude,longitude,orography_mean)
+                    latitude,longitude,orography_mean,orography_slope_x,orography_slope_y)
 
 ! subroutine gw_setup to set up variables for gravity wave and
 !            flow blocking schemes
@@ -146,6 +146,7 @@ real(kind=real_umphys), intent(out)  ::         &!intent(out) diagnostics
 real(kind=real_umphys), intent(in), optional :: time_seconds
 real(kind=real_umphys), intent(in), optional :: latitude(points), longitude(points)
 real(kind=real_umphys), intent(in), optional :: orography_mean(points)
+real(kind=real_umphys), intent(in), optional :: orography_slope_x(points), orography_slope_y(points)
 
 real(kind=real_umphys), intent(out), optional ::                            &
   ennuf_theta_residual(points,levels),                                      &
@@ -620,11 +621,12 @@ if (present(ennuf_v_residual)) ennuf_v_residual = 0.0_real_umphys
 if (present(time_seconds) .and. present(ennuf_theta_residual) .and.         &
     present(ennuf_qt_residual) .and. present(ennuf_u_residual) .and.        &
     present(ennuf_v_residual) .and. levels >= ennuf_levels) then
+  if (.not. present(orography_mean) .or. .not. present(orography_slope_x) .or. &
+      .not. present(orography_slope_y)) then
+    error stop 'ENNUF requires mean orography and signed ancillary x/y slopes'
+  end if
   do i = 1, points
-    orography_for_ennuf = real(sd_orog(i), kind=real64)
-    if (present(orography_mean)) then
-      orography_for_ennuf = real(orography_mean(i), kind=real64)
-    end if
+    orography_for_ennuf = real(orography_mean(i), kind=real64)
 
     if (present(latitude) .and. present(longitude)) then
       call predict_column_residuals(                                         &
@@ -634,8 +636,10 @@ if (present(time_seconds) .and. present(ennuf_theta_residual) .and.         &
            real(qcf(i,1:ennuf_levels), kind=real64),                        &
            real(u(i,1:ennuf_levels), kind=real64),                          &
            real(v(i,1:ennuf_levels), kind=real64),                          &
-           real(press(i,1:ennuf_levels), kind=real64),                      &
            orography_for_ennuf,                                              &
+           real(orography_slope_x(i), kind=real64),                         &
+           real(orography_slope_y(i), kind=real64),                         &
+           real(sd_orog(i), kind=real64),                                   &
            real(time_seconds, kind=real64),                                  &
            ennuf_theta_residual(i,1:ennuf_levels),                          &
            ennuf_qt_residual(i,1:ennuf_levels),                             &
@@ -651,8 +655,10 @@ if (present(time_seconds) .and. present(ennuf_theta_residual) .and.         &
            real(qcf(i,1:ennuf_levels), kind=real64),                        &
            real(u(i,1:ennuf_levels), kind=real64),                          &
            real(v(i,1:ennuf_levels), kind=real64),                          &
-           real(press(i,1:ennuf_levels), kind=real64),                      &
            orography_for_ennuf,                                              &
+           real(orography_slope_x(i), kind=real64),                         &
+           real(orography_slope_y(i), kind=real64),                         &
+           real(sd_orog(i), kind=real64),                                   &
            real(time_seconds, kind=real64),                                  &
            ennuf_theta_residual(i,1:ennuf_levels),                          &
            ennuf_qt_residual(i,1:ennuf_levels),                             &

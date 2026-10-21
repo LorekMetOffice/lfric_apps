@@ -1032,10 +1032,7 @@ subroutine create_model_data( modeldb,           &
             call depository%remove_field("land_tile_fraction")
             call ancil_fields%remove_field("stdev_topog_index")
             call depository%remove_field("stdev_topog_index")
-            call ancil_fields%remove_field("grad_x_orog")
-            call depository%remove_field("grad_x_orog")
-            call ancil_fields%remove_field("grad_y_orog")
-            call depository%remove_field("grad_y_orog")
+            ! Signed slopes are retained for ENNUF inference after initialisation.
           end if
           if (ancil_option == ancil_option_fixed) then
             if (.not. l_esm_couple) then

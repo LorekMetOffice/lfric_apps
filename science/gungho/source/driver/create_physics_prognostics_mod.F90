@@ -610,6 +610,10 @@ contains
     end if
     call processor%apply(make_spec('sd_orog', main%orography,                   &
         ckp=checkpoint_flag))
+    call processor%apply(make_spec('grad_x_orog', main%orography,               &
+        ckp=checkpoint_flag, empty=(orographic_drag /= orographic_drag_um)))
+    call processor%apply(make_spec('grad_y_orog', main%orography,               &
+        ckp=checkpoint_flag, empty=(orographic_drag /= orographic_drag_um)))
     call processor%apply(make_spec('grad_xx_orog', main%orography,              &
         ckp=checkpoint_flag))
     call processor%apply(make_spec('grad_xy_orog', main%orography,              &

@@ -99,6 +99,8 @@ module slow_physics_alg_mod
   use planet_config_mod,         only: p_zero, kappa, cp, Rd
   ! Physics schemes called
 #ifdef UM_PHYSICS
+  use ennuf_moisture_kernel_mod,  only: ennuf_moisture_kernel_type
+  use gwd_ennuf_adapter_mod,      only: log_hecate_nudging_done
   use locate_tropopause_alg_mod, only: locate_tropopause_alg
   use radaer_alg_mod,            only: radaer_alg
   use glomap_aerosol_alg_mod,    only: glomap_aerosol_alg
@@ -282,7 +284,7 @@ contains
     ! ...for spectral GWD
     type( field_type ) :: du_spectral_gwd, dv_spectral_gwd
     ! ...for orog GWD
-    type( field_type ) :: du_orographic_drag, dv_orographic_drag
+    type( field_type ) :: du_orographic_drag, dv_orographic_drag, dqt_orographic_drag
     type( field_type ) :: dw_drag_inc
 #endif
     type( field_type ) :: du_drag_inc, dtheta_orographic_drag, dtheta_spectral_gwd
@@ -845,7 +847,7 @@ contains
                                derived_fields,         &
                                orography_fields,       &
                                theta, u,               &
-                               mr_n)
+                               mr_n, dqt_orographic_drag)
       orographic_drag_done = .true. ! Collect this increment later on
     end if
 
@@ -1061,6 +1063,12 @@ contains
     if (orographic_drag_done) then
       call invoke(inc_X_plus_Y(dtheta, dtheta_orographic_drag), &
                   inc_X_plus_Y(du, du_drag_inc))
+      call invoke(ennuf_moisture_kernel_type( &
+                    mr(imr_v), mr(imr_cl), mr(imr_s), mr(imr_ci), &
+                    mr_n(imr_v), mr_n(imr_cl), mr_n(imr_s), mr_n(imr_ci), &
+                    dqt_orographic_drag, microphysics_casim))
+      call log_hecate_nudging_done()
+      call dqt_orographic_drag%field_final()
       call dtheta_orographic_drag%field_final()
       call du_drag_inc%field_final()
     end if

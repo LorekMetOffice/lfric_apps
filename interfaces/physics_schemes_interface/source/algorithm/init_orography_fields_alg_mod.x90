@@ -33,6 +33,8 @@ contains
 
    ! Ancillary fields
     type( field_type ), pointer :: sd_orog              => null()
+    type( field_type ), pointer :: grad_x_orog          => null()
+    type( field_type ), pointer :: grad_y_orog          => null()
     type( field_type ), pointer :: grad_xx_orog         => null()
     type( field_type ), pointer :: grad_xy_orog         => null()
     type( field_type ), pointer :: grad_yy_orog         => null()
@@ -41,6 +43,12 @@ contains
 
     ! Standard deviation of orography
     call orography_fields%get_field('sd_orog', sd_orog)
+    if (orography_fields%field_exists('grad_x_orog')) then
+      call orography_fields%get_field('grad_x_orog', grad_x_orog)
+      call orography_fields%get_field('grad_y_orog', grad_y_orog)
+      ! Flat signed slopes for idealised/SCM runs; real runs read ancillaries.
+      call invoke(setval_c(grad_x_orog, 0.0_r_def), setval_c(grad_y_orog, 0.0_r_def))
+    end if
     ! (dh/dx)*(dh/dx) of orography
     call orography_fields%get_field('grad_xx_orog', grad_xx_orog)
     ! (dh/dx)*(dh/dy) of orography

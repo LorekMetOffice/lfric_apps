@@ -60,6 +60,7 @@ module init_ancils_mod
   use radiation_config_mod,           only : topography, topography_slope, &
                                              topography_horizon, &
                                              n_horiz_ang, n_horiz_layer
+  use physics_config_mod,             only : orographic_drag, orographic_drag_um
   use specified_surface_config_mod,   only : internal_flux_method, &
                                              internal_flux_method_non_uniform, &
                                              surf_temp_forcing, &
@@ -368,7 +369,8 @@ contains
                               mesh, twod_mesh, twod=.true.)
       call setup_ancil_field("silhouette_area_orog", depository, ancil_fields, &
                               mesh, twod_mesh, twod=.true.)
-      if (topography == topography_slope .or. &
+      if (orographic_drag == orographic_drag_um .or. &
+           topography == topography_slope .or. &
            topography == topography_horizon) then
         call setup_ancil_field("grad_x_orog", depository, ancil_fields, &
                                 mesh, twod_mesh, twod=.true.)
